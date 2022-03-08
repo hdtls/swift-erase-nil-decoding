@@ -22,49 +22,31 @@
 
 import Foundation
 
-public protocol EraseNilDecodable {
-    
-    associatedtype ErasedValue: Decodable
-    
-    static var erasedValue: ErasedValue { get }
+public protocol EmptyInitializable {
+    init()
 }
 
-@propertyWrapper
-public struct EraseNilDecoding<Wrapped: EraseNilDecodable> {
+extension Array: EmptyInitializable {}
+
+extension String: EmptyInitializable {}
+
+extension Dictionary: EmptyInitializable {}
+
+public enum Builtin {
     
-    public typealias Value = Wrapped.ErasedValue
+    public struct True: EraseNilDecodable {
+        public static let erasedValue = true
+    }
     
-    public var wrappedValue: Value
+    public struct False: EraseNilDecodable {
+        public static let erasedValue = false
+    }
     
-    public init(wrappedValue: Value) {
-        self.wrappedValue = wrappedValue
+    public struct Zero<T>: EraseNilDecodable where T: Decodable & BinaryInteger {
+        public static var erasedValue: T { .zero }
+    }
+    
+    public struct Empty<T>: EraseNilDecodable where T: Decodable & EmptyInitializable {
+        public static var erasedValue: T { .init() }
     }
 }
-
-extension EraseNilDecoding: Decodable {
-    
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        wrappedValue = try container.decode(Value.self)
-    }
-}
-
-extension EraseNilDecoding: Encodable where Value: Encodable {
-    
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(wrappedValue)
-    }
-}
-
-extension KeyedDecodingContainer {
-    
-    public func decode<T>(_ type: EraseNilDecoding<T>.Type,
-                          forKey key: Key) throws -> EraseNilDecoding<T> {
-        try decodeIfPresent(type, forKey: key) ?? .init(wrappedValue: T.erasedValue)
-    }
-}
-
-extension EraseNilDecoding: Equatable where Value: Equatable {}
-
-extension EraseNilDecoding: Hashable where Value: Hashable {}
