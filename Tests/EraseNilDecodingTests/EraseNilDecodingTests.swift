@@ -26,13 +26,13 @@ import XCTest
 final class EraseNilDecodingTests: XCTestCase {
 
     struct Outer: Codable, Equatable {
-        @EraseNilToTrue var isTrue: Bool
-        @EraseNilToFalse var isFalse: Bool
-        @EraseNilToZero var zero: Int
-        @EraseNilToEmpty var array: Array<String>
-        @EraseNilToEmpty var string: String
-        @EraseNilToEmpty var dictionary: [String : Int]
-        @EraseNilToEmpty var inner: Inner
+        @EraseNilToTrue var eraseNilToTrue: Bool
+        @EraseNilToFalse var eraseNilToFalse: Bool
+        @EraseNilToZero var eraseNilToZero: Int
+        @EraseNilToEmpty var eraseNilToArray: Array<String>
+        @EraseNilToEmpty var eraseNilToString: String
+        @EraseNilToEmpty var eraseNilToDictionary: [String : Int]
+        @EraseNilToEmpty var eraseNilToInner: Inner
     }
     
     struct Inner: Codable, Equatable, EmptyInitializable {
@@ -50,63 +50,73 @@ final class EraseNilDecodingTests: XCTestCase {
     func testDecodeFieldFromNil() throws {
         let data = try JSONSerialization.data(withJSONObject: [String : Any](), options: .fragmentsAllowed)
         
-        do {
-            let model = try JSONDecoder().decode(Outer.self, from: data)
-            
-            XCTAssertEqual(model.isTrue, true)
-            XCTAssertEqual(model.isFalse, false)
-            XCTAssertEqual(model.zero, 0)
-            XCTAssertEqual(model.array, [])
-            XCTAssertEqual(model.string, "")
-            XCTAssertEqual(model.dictionary, [:])
-            XCTAssertEqual(model.inner, .init())
-        } catch {
-            XCTFail(error.localizedDescription)
-        }
+        let model = try JSONDecoder().decode(Outer.self, from: data)
+        
+        XCTAssertEqual(model.eraseNilToTrue, true)
+        XCTAssertEqual(model.eraseNilToFalse, false)
+        XCTAssertEqual(model.eraseNilToZero, 0)
+        XCTAssertEqual(model.eraseNilToArray, [])
+        XCTAssertEqual(model.eraseNilToString, "")
+        XCTAssertEqual(model.eraseNilToDictionary, [:])
+        XCTAssertEqual(model.eraseNilToInner, .init())
     }
     
     func testEraseOnlyIfTheFieldValueIsNil() throws {
         let jsonObject: [String : Any] = [
-            "isTrue": false,
-            "isFalse": false,
-            "zero": 1,
-            "array": [
+            "eraseNilToTrue": false,
+            "eraseNilToFalse": false,
+            "eraseNilToZero": 1,
+            "eraseNilToArray": [
                 "firstObject"
             ],
-            "string": "This is string field.",
-            "dictionary": [
+            "eraseNilToString": "This is string field.",
+            "eraseNilToDictionary": [
                 "key" : 1
             ],
-            "inner": [
+            "eraseNilToInner": [
                 "id": 1
             ]
         ]
         
         let data = try JSONSerialization.data(withJSONObject: jsonObject, options: .fragmentsAllowed)
-        do {
-            let model = try JSONDecoder().decode(Outer.self, from: data)
+        
+        let model = try JSONDecoder().decode(Outer.self, from: data)
 
-            XCTAssertEqual(model.isTrue, false)
-            XCTAssertEqual(model.isFalse, false)
-            XCTAssertEqual(model.zero, 1)
-            XCTAssertEqual(model.array, ["firstObject"])
-            XCTAssertEqual(model.string, "This is string field.")
-            XCTAssertEqual(model.dictionary, ["key" : 1])
-            XCTAssertEqual(model.inner, .init(id: 1))
-        } catch {
-            XCTFail(error.localizedDescription)
-        }
+        XCTAssertEqual(model.eraseNilToTrue, false)
+        XCTAssertEqual(model.eraseNilToFalse, false)
+        XCTAssertEqual(model.eraseNilToZero, 1)
+        XCTAssertEqual(model.eraseNilToArray, ["firstObject"])
+        XCTAssertEqual(model.eraseNilToString, "This is string field.")
+        XCTAssertEqual(model.eraseNilToDictionary, ["key" : 1])
+        XCTAssertEqual(model.eraseNilToInner, .init(id: 1))
     }
     
     func testEncoding() throws {
+        let expected = try JSONSerialization.data(withJSONObject: [String : Any](), options: .fragmentsAllowed)
+        var model = try JSONDecoder().decode(Outer.self, from: expected)
+        var jsonData = try JSONEncoder().encode(model)
+        XCTAssertEqual(jsonData, expected)
         
-        let expected = Outer(isTrue: false, isFalse: true, zero: 1, array: ["firstObject"], string: "test string.", dictionary: ["key" : 1], inner: .init())
+        var jsonString = String(data: jsonData, encoding: .utf8)
+        XCTAssertNotNil(jsonString)
+        XCTAssertFalse(jsonString!.contains("eraseNilToTrue"))
+        XCTAssertFalse(jsonString!.contains("eraseNilToFalse"))
+        XCTAssertFalse(jsonString!.contains("eraseNilToString"))
+        XCTAssertFalse(jsonString!.contains("eraseNilToArray"))
+        XCTAssertFalse(jsonString!.contains("eraseNilToDictionary"))
+        XCTAssertFalse(jsonString!.contains("eraseNilToInner"))
+
+        model.eraseNilToTrue = true
+        jsonData = try JSONEncoder().encode(model)
+        jsonString = String(data: jsonData, encoding: .utf8)
         
-        let data = try JSONEncoder().encode(expected)
-        
-        let result = try JSONDecoder().decode(Outer.self, from: data)
-        
-        XCTAssertEqual(result, expected)
+        XCTAssertNotNil(jsonString)
+        XCTAssertTrue(jsonString!.contains("eraseNilToTrue"))
+        XCTAssertFalse(jsonString!.contains("eraseNilToFalse"))
+        XCTAssertFalse(jsonString!.contains("eraseNilToString"))
+        XCTAssertFalse(jsonString!.contains("eraseNilToArray"))
+        XCTAssertFalse(jsonString!.contains("eraseNilToDictionary"))
+        XCTAssertFalse(jsonString!.contains("eraseNilToInner"))
     }
     
     func testCustomEraseNilDecodableWorks() throws {
