@@ -34,10 +34,19 @@ public struct EraseNilDecoding<Wrapped: EraseNilDecodable> {
     
     public typealias Value = Wrapped.ErasedValue
     
-    public var wrappedValue: Value
+    public var wrappedValue: Value {
+        set { actualValue = newValue }
+        get { actualValue ?? Wrapped.erasedValue }
+    }
+    
+    var actualValue: Value?
     
     public init(wrappedValue: Value) {
-        self.wrappedValue = wrappedValue
+        self.actualValue = wrappedValue
+    }
+    
+    init(value: Value?) {
+        self.actualValue = value
     }
 }
 
@@ -45,7 +54,7 @@ extension EraseNilDecoding: Decodable {
     
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        wrappedValue = try container.decode(Value.self)
+        actualValue = try container.decode(Value.self)
     }
 }
 
@@ -57,11 +66,24 @@ extension EraseNilDecoding: Encodable where Value: Encodable {
     }
 }
 
+extension KeyedEncodingContainer {
+    
+    public mutating func encode<T>(_ value: EraseNilDecoding<T>, forKey key: Self.Key) throws where T.ErasedValue: Encodable {
+        guard value.actualValue != nil else {
+            let v: EraseNilDecoding<T>? = nil
+            try encodeIfPresent(v, forKey: key)
+            return
+        }
+
+        try encodeIfPresent(value, forKey: key)
+    }
+}
+
 extension KeyedDecodingContainer {
     
     public func decode<T>(_ type: EraseNilDecoding<T>.Type,
                           forKey key: Key) throws -> EraseNilDecoding<T> {
-        try decodeIfPresent(type, forKey: key) ?? .init(wrappedValue: T.erasedValue)
+        try decodeIfPresent(type, forKey: key) ?? .init(value: nil)
     }
 }
 
